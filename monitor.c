@@ -5,6 +5,11 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <stddef.h>
+#include <stdlib.h>
+
+#include "eventqueue.h"
+#include "fileops.h"
+
 
 const char *watch_dir = "/tmp/monitor";
 
@@ -29,7 +34,16 @@ int main(int argc, char *argv[])
 
 	fd.fd	  = infd;
 	fd.events = POLLIN;
-	size_t ecount = 0;;
+	size_t qecount = 0;;
+
+/*
+	char *hbuf = NULL;
+	int hsize = hash_file("/home/pslavin/.bashrc", &hbuf);
+	fprintf(stderr, ".bashrc: %s\n", hbuf);
+	free(hbuf);
+*/
+
+	fprintf(stderr, "Watching %s:\n", watch_dir);
 
 	while(1){
 		int pollret = poll(&fd, 1, -1);
@@ -63,22 +77,10 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		idx = 0;
-		struct inotify_event *event = NULL;
-		while(idx < in_count){
-			event = (struct inotify_event *)(buf+idx);
-			ecount++;
-
-			fprintf(stderr, "file: %s", event->name);
-			if(event->mask & IN_CREATE)
-				fprintf(stderr, " created\n");
-			if(event->mask & IN_MOVED_TO)
-				fprintf(stderr, " moved to\n");
-
-			idx += offsetof(struct inotify_event, name) + event->len;
-			fprintf(stderr, "\tecount: %u  idx: %d\n", ecount, idx);
-		}
-		putchar('\n');
+		qecount += enqueue_events(queue_head, buf, in_count);
+		print_queue(queue_head, stderr);
+		enqueue_files(filequeue_head, queue_head, watch_dir);
+		print_fileinfos(filequeue_head, stderr);
 
 	}
 
