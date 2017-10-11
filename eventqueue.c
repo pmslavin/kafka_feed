@@ -32,17 +32,12 @@ size_t enqueue_events(eventqueue_t *q, const char *buf, size_t buf_sz)
 			qlast->next = q;
 		else
 			queue_head  = q;
-/*
-		fprintf(stderr, "file: %s", event->name);
-		if(event->mask & IN_CREATE)
-			fprintf(stderr, " created\n");
-		if(event->mask & IN_MOVED_TO)
-			fprintf(stderr, " moved to\n");
-*/
+
 		idx += inc;
+#ifdef DEBUG
 		fprintf(stderr, "\tqecount: %u  idx: %d\n", qecount, idx);
+#endif
 	}
-	putchar('\n');
 
 	return qecount;
 }
@@ -57,6 +52,10 @@ void print_queue(eventqueue_t *q, FILE *dest)
 			fprintf(dest, " created\n");
 		if(q->event->mask & IN_MOVED_TO)
 			fprintf(dest, " moved into\n");
+		if(q->event->mask & IN_CLOSE_WRITE)
+			fprintf(dest, " close write\n");
+		if(q->event->mask & IN_MODIFY)
+			fprintf(dest, " modify\n");
 
 		q = q->next;
 	}

@@ -1,3 +1,4 @@
+#define _BSD_SOURCE // madvise
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -17,6 +18,8 @@ fileinfo_t *filequeue_head = NULL;
 
 ssize_t hash_file(const char *path, char **digbuf)
 {
+	void *fbuf = NULL;
+
 	struct stat sb;
 	int fd = open(path, 'r');
 	if(fd == -1){
@@ -29,13 +32,21 @@ ssize_t hash_file(const char *path, char **digbuf)
 		return -1;
 	}
 
-	void *fbuf = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	if(!fbuf){
-		perror("mmap");
-		return -1;
+	/* mmap will EINVAL for 0 len file */
+	if(sb.st_size > 0){
+		fbuf = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+		if(!fbuf){
+			perror("mmap");
+			return -1;
+		}
+/* Non-posix; attempt only when present */
+#ifdef _BSD_SOURCE
+		madvise(fbuf, sb.st_size, MADV_SEQUENTIAL | MADV_WILLNEED);
+#endif
 	}
 	close(fd);
 
+	/* Still perform hash if zero-length file */
 	unsigned char *hbuf = malloc(SHA256_DIGEST_LENGTH);
 	SHA256(fbuf, sb.st_size, hbuf);
 
@@ -62,11 +73,15 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 		eqlast = eq;
 		fileinfo_t *f = malloc(sizeof(fileinfo_t));
 		fcount++;
-		size_t pathlen = dirlen + strlen(eq->event->name) + 2;	// + '/' + NULL
+		size_t pathlen = dirlen + strlen(eq->event->name) + 2;	// Plus '/' and NULL
 		f->path = calloc(1, pathlen);
 		snprintf(f->path, pathlen, "%s/%s", dir, eq->event->name);
 
-		hash_file(f->path, &(f->digest));
+		int hash_ret = hash_file(f->path, &(f->digest));
+		if(hash_ret == -1){
+			perror("hash_file");
+			return -1;
+		}
 
 		int fd = open(f->path, 'r');
 		if(fd == -1){
@@ -108,9 +123,10 @@ void print_fileinfos(fileinfo_t *f, FILE *dest)
 {
 	size_t fcount = 1;
 	while(f){
-		fprintf(dest, "[%u]\t%s\n", fcount++, f->path);
-		fprintf(dest, "\tHash: %s\n", f->digest);
-		fprintf(dest, "\tTime: %lu\n\n", f->mtime);
+		fprintf(dest, "[%u]\t%s (%s) %lu\n", fcount++, f->path, f->digest, f->mtime);
+//		fprintf(dest, "[%u]\t%s\n", fcount++, f->path);
+//		fprintf(dest, "\tHash: %s\n", f->digest);
+//		fprintf(dest, "\tTime: %lu\n\n", f->mtime);
 		f = f->next;
 	}
 }
