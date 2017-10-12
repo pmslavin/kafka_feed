@@ -3,12 +3,16 @@
 
 #include <time.h>
 #include <stdio.h>
+#include <sys/types.h>
+
+#include "eventqueue.h"
 
 typedef struct fileinfo{
 	struct fileinfo *next;
 	char 			*path;
-	char 			*digest;
+	off_t			 size;
 	time_t	 		 mtime;
+	char 			*digest;
 }fileinfo_t;
 
 extern fileinfo_t *filequeue_head;

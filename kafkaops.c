@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <string.h>
+
 #include "kafkaops.h"
 
 
@@ -67,5 +70,34 @@ int close_kafka_producer(void)
 	rd_kafka_topic_destroy(rkt);
 	rd_kafka_destroy(rk);
 
+	return 0;
+}
+
+
+char *form_msg(const fileinfo_t *f)
+{
+	char *msg = NULL;
+	const char *prefix = "{file : '%s', size : %lu, mtime : %lu, sha256 : '%s', data : '";
+	const char *suffix = "'}";
+	int pflen  = strlen(prefix) + strlen(f->path) + 20 /*floor(log10(2^64-1))+1 */ + 2*32 /* 2*SHA256_LEN */;
+	int buflen = pflen + f->size + strlen(suffix);
+
+	char *buf = malloc(buflen);
+	if(!buf){
+		perror("form_msg: malloc");
+		return NULL;
+	}
+	memset(buf, 0, buflen);
+
+	int pfoff = snprintf(buf, pflen+1, prefix, f->path, f->size, f->mtime, f->digest);
+	fprintf(stderr, "%s pfoff: %u buflen: %u\n", buf, pfoff, buflen);
+
+	return msg;
+}
+
+
+int publish(const char *msg)
+{
+	(void)msg;	// unused
 	return 0;
 }

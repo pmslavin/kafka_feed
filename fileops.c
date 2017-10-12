@@ -12,6 +12,7 @@
 
 #include "eventqueue.h"
 #include "fileops.h"
+#include "kafkaops.h"
 
 fileinfo_t *filequeue_head = NULL;
 
@@ -94,6 +95,7 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 			return -1;
 		}
 
+		f->size	 = sb.st_size;
 		f->mtime = sb.st_mtime;
 		f->next = NULL;
 
@@ -123,10 +125,9 @@ void print_fileinfos(fileinfo_t *f, FILE *dest)
 {
 	size_t fcount = 1;
 	while(f){
-		fprintf(dest, "[%u]\t%s (%s) %lu\n", fcount++, f->path, f->digest, f->mtime);
-//		fprintf(dest, "[%u]\t%s\n", fcount++, f->path);
-//		fprintf(dest, "\tHash: %s\n", f->digest);
-//		fprintf(dest, "\tTime: %lu\n\n", f->mtime);
+		fprintf(dest, "[%3u] %s %u bytes %lu %s\n", fcount++, f->path, (unsigned int)f->size, f->mtime, f->digest);
+		form_msg(f);
 		f = f->next;
 	}
+	fputc('\n', dest);
 }

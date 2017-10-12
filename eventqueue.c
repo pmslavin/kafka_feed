@@ -17,8 +17,11 @@ size_t enqueue_events(eventqueue_t *q, const char *buf, size_t buf_sz)
 		eventqueue_t *qlast = NULL;
 		event = (struct inotify_event *)(buf+idx);
 		size_t inc = offsetof(struct inotify_event, name) + event->len;
-		qecount++;
+		idx += inc;
+		if(event->mask & IN_ISDIR)
+			continue;
 
+		qecount++;
 		while(q){
 			qlast = q;
 			q = q->next;
@@ -33,7 +36,6 @@ size_t enqueue_events(eventqueue_t *q, const char *buf, size_t buf_sz)
 		else
 			queue_head  = q;
 
-		idx += inc;
 #ifdef DEBUG
 		fprintf(stderr, "\tqecount: %u  idx: %d\n", qecount, idx);
 #endif
