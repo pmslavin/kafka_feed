@@ -6,7 +6,7 @@
 
 int init_kafka_producer(void);
 int close_kafka_producer(void);
-char *form_msg(const fileinfo_t *f);
-int publish(const char *msg);
+char *form_msg(const fileinfo_t *, size_t *);
+int publish(const char *, size_t);
 
 #endif

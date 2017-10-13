@@ -48,8 +48,6 @@ int main(int argc, char *argv[])
 
 	struct pollfd fd;
 
-	fprintf(stderr, "sizeof(time_t) = %u\n", sizeof(time_t));
-
 	int infd = inotify_init();
 	if(infd == -1){
 		perror("inotify_init");

@@ -123,10 +123,13 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 
 void print_fileinfos(fileinfo_t *f, FILE *dest)
 {
-	size_t fcount = 1;
+	size_t fcount = 1, msg_size = 0;
 	while(f){
 		fprintf(dest, "[%3u] %s %u bytes %lu %s\n", fcount++, f->path, (unsigned int)f->size, f->mtime, f->digest);
-		form_msg(f);
+		char *msg_buf = form_msg(f, &msg_size);
+		fprintf(stderr, "%s msg_size: %u\n", msg_buf, msg_size);
+		publish(msg_buf, msg_size);
+		free(msg_buf);
 		f = f->next;
 	}
 	fputc('\n', dest);
