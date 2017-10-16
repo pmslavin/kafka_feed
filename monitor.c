@@ -132,6 +132,7 @@ int main(int argc, char *argv[])
 #endif
 		enqueue_files(filequeue_head, queue_head, watch_dir);
 		print_fileinfos(filequeue_head, stderr);
+		print_cdrmsgs(cdrmsgqueue_head, stderr);
 	}
 
 	close(infd);

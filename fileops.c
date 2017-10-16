@@ -14,7 +14,8 @@
 #include "fileops.h"
 #include "kafkaops.h"
 
-fileinfo_t *filequeue_head = NULL;
+fileinfo_t *filequeue_head   = NULL;
+cdrmsg_t   *cdrmsgqueue_head = NULL;
 
 
 ssize_t hash_file(const char *path, char **digbuf)
@@ -97,7 +98,7 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 
 		f->size	 = sb.st_size;
 		f->mtime = sb.st_mtime;
-		f->next = NULL;
+		f->next  = NULL;
 
 		while(fq){
 			lastf = fq;
@@ -123,14 +124,58 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 
 void print_fileinfos(fileinfo_t *f, FILE *dest)
 {
-	size_t fcount = 1, msg_size = 0;
+	size_t fcount = 1;
+	fileinfo_t *last = NULL;
 	while(f){
 		fprintf(dest, "[%3u] %s %u bytes %lu %s\n", fcount++, f->path, (unsigned int)f->size, f->mtime, f->digest);
-		char *msg_buf = form_msg(f, &msg_size);
+		size_t cdr_count = form_cdr_msgs(&cdrmsgqueue_head, f);
+		(void)cdr_count;	// unused
+
+/*		fprintf(stderr, "data: %s  count: %u\n", cdrmsgqueue_head->msg, cdr_count);
+		char *msg_buf = form_file_msg(f, &msg_size);
 		fprintf(stderr, "%s msg_size: %u\n", msg_buf, msg_size);
 		publish(msg_buf, msg_size);
 		free(msg_buf);
+*/
+		last = f;
 		f = f->next;
+		free_fileinfo(last);
+		last = NULL;
 	}
+	filequeue_head = NULL;
 	fputc('\n', dest);
+}
+
+
+void print_cdrmsgs(cdrmsg_t *q, FILE *dest)
+{
+	size_t msg_count = 1;
+	cdrmsg_t *last = NULL;
+	while(q){
+		fprintf(dest, "[%3u] %s\n", msg_count++, q->msg);
+		publish(q->msg, strlen(q->msg));
+		last = q;
+		q = q->next;
+		free_cdrmsg(last);
+		last = NULL;
+	}
+	flush_kafka_buffer();
+	cdrmsgqueue_head = NULL;
+}
+
+
+void free_cdrmsg(cdrmsg_t *c)
+{
+	free(c->msg);
+	c->msg = NULL;
+	free(c);
+	c = NULL;
+}
+
+
+void free_fileinfo(fileinfo_t *f)
+{
+	free(f->path);
+	free(f->digest);
+	free(f);
 }

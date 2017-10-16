@@ -1,4 +1,5 @@
 #define USE_LZ4
+#define _POSIX_C_SOURCE 200809L	// getline
 #include <stdlib.h>
 #include <string.h>
 #include <openssl/sha.h>
@@ -6,6 +7,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <stdio.h>
 
 #include "kafkaops.h"
 
@@ -27,8 +29,8 @@ static void dr_msg_cb(rd_kafka_t *rk, const rd_kafka_message_t *rkmsg, void *arg
 
 	if(rkmsg->err)
 		rd_kafka_err2str(rkmsg->err);
-	else
-		fprintf(stderr, "Published %zd bytes to partition %u\n", rkmsg->len, rkmsg->partition);
+//	else
+//		fprintf(stderr, "Published %zd bytes to partition %u\n", rkmsg->len, rkmsg->partition);
 }
 
 
@@ -46,6 +48,12 @@ int init_kafka_producer(void)
 #endif
 	if(rd_kafka_conf_set(conf, "message.max.bytes", "20971520", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
 		fprintf(stderr, "Unable to set max.message.bytes\n");
+	if(rd_kafka_conf_set(conf, "linger.ms", "100", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
+		fprintf(stderr, "Unable to set linger.ms\n");
+	if(rd_kafka_conf_set(conf, "batch.num.messages", "10000", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
+		fprintf(stderr, "Unable to set batch.num.messages\n");
+	if(rd_kafka_conf_set(conf, "queue.buffering.max.kbytes", "131072", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
+		fprintf(stderr, "Unable to set queue.buffering.max.kbytes\n");
 
 	rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
 
@@ -70,6 +78,7 @@ int init_kafka_producer(void)
 	return 0;
 }
 
+
 int close_kafka_producer(void)
 {
 	if(!(rk || rkt))
@@ -85,16 +94,16 @@ int close_kafka_producer(void)
 }
 
 
-char *form_msg(const fileinfo_t *f, size_t *msg_size)
+char *form_file_msg(const fileinfo_t *f, size_t *msg_size)
 {
 	const char *prefix = "{file : '%s', size : %lu, mtime : %lu, sha256 : '%s', data : '";
 	const char *suffix = "'}";
-	int pflen  = strlen(prefix) + strlen(f->path) + 20 /* floor(log10(2^64-1))+1 */ + 2*SHA256_DIGEST_LENGTH;
+	int pflen  = strlen(prefix) + strlen(f->path) + 2*20 /* 2*floor(log10(2^64-1))+1 */ + 2*SHA256_DIGEST_LENGTH;
 	int buflen = pflen + f->size + strlen(suffix);
 
 	char *buf = malloc(buflen);
 	if(!buf){
-		perror("form_msg: malloc");
+		perror("form_file_msg: malloc");
 		*msg_size = -1;
 		return NULL;
 	}
@@ -105,13 +114,13 @@ char *form_msg(const fileinfo_t *f, size_t *msg_size)
 
 	int fd = open(f->path, 'r');
 	if(fd == -1){
-		perror("form_msg: open");
+		perror("form_file_msg: open");
 		goto error;
 	}
 
 	void *mf = mmap(NULL, f->size, PROT_READ, MAP_SHARED, fd, 0);
 	if(!mf){
-		perror("form_msg: mmap");
+		perror("form_file_msg: mmap");
 		goto error;
 	}
 	close(fd);
@@ -124,10 +133,9 @@ char *form_msg(const fileinfo_t *f, size_t *msg_size)
 	/* Trim buf to exact msg size */
 	void *rbuf = realloc(buf, pfoff+f->size+sfoff);
 	if(!rbuf){
-		perror("form_msg: realloc");
+		perror("form_file_msg: realloc");
 		goto error;
 	}
-//	fprintf(stderr, "buf: %x  rbuf: %x\n", buf, rbuf);
 
 	*msg_size = pfoff+f->size+sfoff;
 	return buf;
@@ -139,16 +147,101 @@ error:
 }
 
 
+size_t form_cdr_msgs(cdrmsg_t **q, const fileinfo_t *f)
+{
+	size_t msg_count = 0, line_len = 0;
+	ssize_t count = 0;
+	char *line = NULL, *p = NULL;
+
+	FILE *fp = fopen(f->path, "r");
+	if(!fp){
+		perror("form_cdr_msgs: fopen");
+		return -1;
+	}
+
+	cdrmsg_t *qhead = *q;
+	cdrmsg_t *qlast = *q;
+	while(qhead){
+		qlast = qhead;
+		qhead = qhead->next;
+	}
+
+	while((count = getline(&line, &line_len, fp)) != -1){
+		p = line;
+		p[count-1] = '\0';	// Replace final newline with null
+		msg_count++;
+
+		char *msg = form_cdr_msg(f, line);
+		free(line);
+		cdrmsg_t *cm = malloc(sizeof(cdrmsg_t));
+		if(!cm){
+			perror("form_cdr_msgs: malloc");
+			free(msg);
+			return -1;
+		}
+		cm->next = NULL;
+		cm->msg  = msg;
+		if(qlast)
+			qlast->next = cm;
+		else
+			*q = cm;
+
+		qlast = cm;
+		line = NULL;
+		line_len = 0;
+	}
+
+	if(count == -1)
+		free(line);
+
+	fclose(fp);
+	return msg_count;
+}
+
+
+char *form_cdr_msg(const fileinfo_t *f, const char *data)
+{
+	char *msg = NULL;
+	const char *prefix = "{srcfile : '%s', size : %lu, data : '";
+	const char *suffix = "'}";
+
+	size_t pflen  = strlen(prefix) + strlen(f->path) + 20;
+	size_t msglen = pflen + strlen(data) + strlen(suffix) + 1;
+	msg = malloc(msglen);
+	if(!msg){
+		perror(msg);
+		return NULL;
+	}
+	memset(msg, 0, msglen);
+	int pfoff = snprintf(msg, pflen, prefix, f->path, strlen(data));
+	memcpy(msg+pfoff, data, strlen(data));
+	int msgoff = snprintf(msg+pfoff+strlen(data), strlen(suffix)+1, suffix);
+
+	void *mbuf = realloc(msg, pfoff+strlen(data)+msgoff);
+	if(!mbuf){
+		perror("form_cdr_msg: realloc");
+		free(msg);
+		return NULL;
+	}
+
+	return mbuf;
+}
+
+
 int publish(const char *msg, size_t msg_size)
 {
-	int ret = rd_kafka_produce(rkt, RD_KAFKA_PARTITION_UA, 0, (void*)msg, msg_size, NULL, 0, NULL);
+	int ret = rd_kafka_produce(rkt, RD_KAFKA_PARTITION_UA, RD_KAFKA_MSG_F_COPY, (void*)msg, msg_size, NULL, 0, NULL);
 	if(ret == -1){
 		fprintf(stderr, "%% Failed to produce to topic %s: %s\n", rd_kafka_topic_name(rkt), rd_kafka_err2str(rd_kafka_last_error()));
 		return -1;
 	}
 
 	rd_kafka_poll(rk, 0);
-	rd_kafka_flush(rk, 10*1000);
-
 	return 0;
+}
+
+
+void flush_kafka_buffer(void)
+{
+	rd_kafka_flush(rk, 5*1000);
 }
