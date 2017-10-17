@@ -124,10 +124,10 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 
 void print_fileinfos(fileinfo_t *f, FILE *dest)
 {
-	size_t fcount = 1;
+	size_t fcount = 0;
 	fileinfo_t *last = NULL;
 	while(f){
-		fprintf(dest, "[%3u] %s %u bytes %lu %s\n", fcount++, f->path, (unsigned int)f->size, f->mtime, f->digest);
+		fprintf(dest, "[%3u] %s %u bytes %lu %s\n", ++fcount, f->path, (unsigned int)f->size, f->mtime, f->digest);
 		size_t cdr_count = form_cdr_msgs(&cdrmsgqueue_head, f);
 		(void)cdr_count;	// unused
 
@@ -143,23 +143,26 @@ void print_fileinfos(fileinfo_t *f, FILE *dest)
 		last = NULL;
 	}
 	filequeue_head = NULL;
+	fprintf(dest, "file count: %u\n", fcount);
 	fputc('\n', dest);
 }
 
 
 void print_cdrmsgs(cdrmsg_t *q, FILE *dest)
 {
-	size_t msg_count = 1;
+	size_t msg_count = 0;
 	cdrmsg_t *last = NULL;
 	while(q){
-		fprintf(dest, "[%3u] %s\n", msg_count++, q->msg);
+//		fprintf(dest, "[%3u] %s\n", ++msg_count, q->msg);
+		++msg_count;
 		publish(q->msg, strlen(q->msg));
 		last = q;
 		q = q->next;
 		free_cdrmsg(last);
 		last = NULL;
 	}
-	flush_kafka_buffer();
+	fprintf(dest, "msg count: %u\n", msg_count);
+	flush_kafka_buffer(5);
 	cdrmsgqueue_head = NULL;
 }
 

@@ -48,12 +48,14 @@ int init_kafka_producer(void)
 #endif
 	if(rd_kafka_conf_set(conf, "message.max.bytes", "20971520", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
 		fprintf(stderr, "Unable to set max.message.bytes\n");
-	if(rd_kafka_conf_set(conf, "linger.ms", "100", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
-		fprintf(stderr, "Unable to set linger.ms\n");
-	if(rd_kafka_conf_set(conf, "batch.num.messages", "10000", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
+	if(rd_kafka_conf_set(conf, "batch.num.messages", "2000", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
 		fprintf(stderr, "Unable to set batch.num.messages\n");
 	if(rd_kafka_conf_set(conf, "queue.buffering.max.kbytes", "131072", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
 		fprintf(stderr, "Unable to set queue.buffering.max.kbytes\n");
+	if(rd_kafka_conf_set(conf, "queue.buffering.max.ms", "100", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
+		fprintf(stderr, "Unable to set queue.buffering.max.ms\n");
+	if(rd_kafka_conf_set(conf, "request.required.acks", "all", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
+		fprintf(stderr, "Unable to set request.required.acks\n");
 
 	rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
 
@@ -72,8 +74,23 @@ int init_kafka_producer(void)
 		return -1;
 	}
 
+	const struct rd_kafka_metadata *metadata;
+
+	rd_kafka_resp_err_t err = rd_kafka_metadata(rk, 1, rkt, &metadata, 5000);
+	if(err != RD_KAFKA_RESP_ERR_NO_ERROR)
+		fprintf(stderr, "Unable to retrieve Kafka metadata\n");
+
+
+	fprintf(stderr, "Connected to brokers:\n");
+	for(int i=metadata->broker_cnt-1; i>=0; i--){	// ids descend?
+		fprintf(stderr, "  id: %u  %s:%i\n", metadata->brokers[i].id,
+										  metadata->brokers[i].host,
+										  metadata->brokers[i].port);
+	}
+
+	rd_kafka_metadata_destroy(metadata);
 	rd_kafka_poll(rk, 0);
-	rd_kafka_flush(rk, 10*1000);
+	rd_kafka_flush(rk, 5*1000);
 
 	return 0;
 }
@@ -85,7 +102,8 @@ int close_kafka_producer(void)
 		return -1;
 
 	/* Final flush of message queue */
-	rd_kafka_flush(rk, 5*1000);
+	rd_kafka_flush(rk, 1000);
+	rd_kafka_poll(rk, 1000);
 
 	rd_kafka_topic_destroy(rkt);
 	rd_kafka_destroy(rk);
@@ -130,7 +148,7 @@ char *form_file_msg(const fileinfo_t *f, size_t *msg_size)
 
 	int sfoff = snprintf(buf+pfoff+f->size, strlen(suffix)+1, "%s", suffix);
 
-	/* Trim buf to exact msg size */
+	/* Trim buf to exact msg size: NB not null-terminated */
 	void *rbuf = realloc(buf, pfoff+f->size+sfoff);
 	if(!rbuf){
 		perror("form_file_msg: realloc");
@@ -209,15 +227,15 @@ char *form_cdr_msg(const fileinfo_t *f, const char *data)
 	size_t msglen = pflen + strlen(data) + strlen(suffix) + 1;
 	msg = malloc(msglen);
 	if(!msg){
-		perror(msg);
+		perror("form_cdr_msg: malloc");
 		return NULL;
 	}
 	memset(msg, 0, msglen);
 	int pfoff = snprintf(msg, pflen, prefix, f->path, strlen(data));
 	memcpy(msg+pfoff, data, strlen(data));
-	int msgoff = snprintf(msg+pfoff+strlen(data), strlen(suffix)+1, suffix);
+	int sfoff = snprintf(msg+pfoff+strlen(data), strlen(suffix)+1, suffix);
 
-	void *mbuf = realloc(msg, pfoff+strlen(data)+msgoff);
+	char *mbuf = realloc(msg, pfoff+strlen(data)+sfoff+1);
 	if(!mbuf){
 		perror("form_cdr_msg: realloc");
 		free(msg);
@@ -230,18 +248,32 @@ char *form_cdr_msg(const fileinfo_t *f, const char *data)
 
 int publish(const char *msg, size_t msg_size)
 {
-	int ret = rd_kafka_produce(rkt, RD_KAFKA_PARTITION_UA, RD_KAFKA_MSG_F_COPY, (void*)msg, msg_size, NULL, 0, NULL);
+	int ret;
+restart:
+	ret = rd_kafka_produce(rkt, RD_KAFKA_PARTITION_UA, RD_KAFKA_MSG_F_COPY, (void*)msg, msg_size, NULL, 0, NULL);
 	if(ret == -1){
-		fprintf(stderr, "%% Failed to produce to topic %s: %s\n", rd_kafka_topic_name(rkt), rd_kafka_err2str(rd_kafka_last_error()));
-		return -1;
+		rd_kafka_resp_err_t err = rd_kafka_last_error();
+		if(err == RD_KAFKA_RESP_ERR__QUEUE_FULL){
+			size_t outq = rd_kafka_outq_len(rk);
+			fprintf(stderr, "Kafka queue full (%u msgs). Flushing buffer...\n", outq);
+			rd_kafka_flush(rk, 1000);
+			rd_kafka_poll(rk, -1);
+			outq = rd_kafka_outq_len(rk);
+			fprintf(stderr, "Kafka queue now holds %u msgs. Retrying...\n", outq);
+			goto restart;
+		}else{
+			fprintf(stderr, "[!] Failed to produce to topic %s: %s\n", rd_kafka_topic_name(rkt), rd_kafka_err2str(rd_kafka_last_error()));
+		}
 	}
 
+//	size_t outq = rd_kafka_outq_len(rk);
+//	fprintf(stderr, "outq: %u\n", outq);
 	rd_kafka_poll(rk, 0);
 	return 0;
 }
 
 
-void flush_kafka_buffer(void)
+void flush_kafka_buffer(size_t sec)
 {
-	rd_kafka_flush(rk, 5*1000);
+	rd_kafka_flush(rk, sec*1000);
 }

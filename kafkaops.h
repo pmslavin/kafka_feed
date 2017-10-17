@@ -10,6 +10,6 @@ char *form_file_msg(const fileinfo_t *, size_t *);
 size_t form_cdr_msgs(cdrmsg_t **, const fileinfo_t *);
 char *form_cdr_msg(const fileinfo_t *, const char *);
 int publish(const char *, size_t);
-void flush_kafka_buffer(void);
+void flush_kafka_buffer(size_t);
 
 #endif
