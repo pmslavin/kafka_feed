@@ -144,7 +144,6 @@ void print_fileinfos(fileinfo_t *f, FILE *dest)
 	}
 	filequeue_head = NULL;
 	fprintf(dest, "file count: %u\n", fcount);
-	fputc('\n', dest);
 }
 
 

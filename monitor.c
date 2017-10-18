@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <signal.h>
 
+#include "utils.h"
 #include "eventqueue.h"
 #include "fileops.h"
 #include "kafkaops.h"
@@ -18,13 +19,19 @@
 typedef void (*sighandler_t)(int);
 const char *watch_dir = "/tmp/monitor";
 
+
+
 void sigint_tidy(int arg)
 {
 	(void)arg;	// unused
-	fprintf(stderr, "\rInterrupt...\n");
-	fprintf(stderr, "Closing Kafka producer...\n");
+	char log_time[24];
+	isotime(log_time);
+	fprintf(stderr, "\r[%s] Interrupt...\n", log_time);
+	isotime(log_time);
+	fprintf(stderr, "[%s] Closing Kafka producer...\n", log_time);
 	close_kafka_producer();
-	fprintf(stderr, "Ending watch on %s\n", watch_dir);
+	isotime(log_time);
+	fprintf(stderr, "[%s] Ending watch on %s (%u)\n", log_time, watch_dir, monitor_pid);
 
 	exit(0);
 }
@@ -39,6 +46,7 @@ void sighup_reload(int arg)
 	close_kafka_producer();
 	init_kafka_producer();
 }
+
 
 
 int main(int argc, char *argv[])
@@ -88,7 +96,10 @@ int main(int argc, char *argv[])
 	free(hbuf);
 */
 
-	fprintf(stderr, "Watching %s...\n", watch_dir);
+	monitor_pid = getpid();
+	char init_time[ISO_TIME_SZ];
+	isotime(init_time);
+	fprintf(stderr, "[%s] Watching %s (%u)\n", init_time, watch_dir, monitor_pid);
 
 	while(1){
 		int pollret = poll(&fd, 1, -1);

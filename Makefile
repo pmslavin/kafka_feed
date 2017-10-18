@@ -2,7 +2,7 @@ TARGET  := monitor
 CC      := gcc
 CFLAGS  := -g -std=c99 -O0
 WARN    := -Wall -Wextra -Wno-format -pedantic
-OBJECTS := eventqueue.o b64.o fileops.o kafkaops.o monitor.o
+OBJECTS := eventqueue.o b64.o utils.o fileops.o kafkaops.o monitor.o
 LIBS	:= -lcrypto -lssl -lrdkafka
 
 all:	monitor
@@ -24,6 +24,9 @@ kafkaops.o: kafkaops.c kafkaops.h
 
 b64.o: b64.c b64.h
 	${CC} ${CFLAGS} ${WARN} -c b64.c
+
+utils.o: utils.c utils.h
+	${CC} ${CFLAGS} ${WARN} -c utils.c
 
 clean:
 	-rm *.o monitor

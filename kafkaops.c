@@ -10,11 +10,12 @@
 #include <stdio.h>
 
 #include "kafkaops.h"
+#include "utils.h"
 
 
 static const char *broker_list = "10.0.38.243,10.0.38.244";
 static const char *topic       = "paul_test";
-static char txt[] = "Text from initialise Kafka";
+static char connect_txt[] = "[%s] Connection from CDR Monitor producer (%u)";	// [isotime] ... (pid)
 
 static char errbuf[1024];
 
@@ -68,7 +69,14 @@ int init_kafka_producer(void)
 
 	rkt = rd_kafka_topic_new(rk, topic, NULL);
 
-	int ret = rd_kafka_produce(rkt, RD_KAFKA_PARTITION_UA, 0, txt, sizeof(txt), NULL, 0, NULL);
+	char connect_line[72];
+	char connect_time[ISO_TIME_SZ];
+	isotime(connect_time);
+	if(!monitor_pid)
+		monitor_pid = getpid();
+	int line_size = snprintf(connect_line, 72, connect_txt, connect_time, monitor_pid);
+
+	int ret = rd_kafka_produce(rkt, RD_KAFKA_PARTITION_UA, 0, connect_line, line_size, NULL, 0, NULL);
 	if(ret == -1){
 		fprintf(stderr, "%% Failed to produce to topic %s: %s\n", rd_kafka_topic_name(rkt), rd_kafka_err2str(rd_kafka_last_error()));
 		return -1;
@@ -80,12 +88,13 @@ int init_kafka_producer(void)
 	if(err != RD_KAFKA_RESP_ERR_NO_ERROR)
 		fprintf(stderr, "Unable to retrieve Kafka metadata\n");
 
-
-	fprintf(stderr, "Connected to brokers:\n");
+	char log_time[ISO_TIME_SZ];
+	isotime(log_time);
+	fprintf(stderr, "[%s] Connected to brokers:\n", log_time);
 	for(int i=metadata->broker_cnt-1; i>=0; i--){	// ids descend?
 		fprintf(stderr, "  id: %u  %s:%i\n", metadata->brokers[i].id,
-										  metadata->brokers[i].host,
-										  metadata->brokers[i].port);
+											 metadata->brokers[i].host,
+											 metadata->brokers[i].port);
 	}
 
 	rd_kafka_metadata_destroy(metadata);
