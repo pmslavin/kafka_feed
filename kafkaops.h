@@ -4,6 +4,13 @@
 #include "librdkafka/rdkafka.h"
 #include "fileops.h"
 
+struct kafka_config_pair{
+	char key[32];
+	char val[32];
+	int	 fail_on_err;
+};
+
+
 int init_kafka_producer(void);
 int close_kafka_producer(void);
 char *form_file_msg(const fileinfo_t *, size_t *);

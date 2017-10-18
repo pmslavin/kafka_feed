@@ -13,8 +13,7 @@
 #include "utils.h"
 
 
-static const char *broker_list = "10.0.38.243,10.0.38.244";
-static const char *topic       = "paul_test";
+static const char *topic  = "paul_test";
 static char connect_txt[] = "[%s] Connection from CDR Monitor producer (%u)";	// [isotime] ... (pid)
 
 static char errbuf[1024];
@@ -37,31 +36,30 @@ static void dr_msg_cb(rd_kafka_t *rk, const rd_kafka_message_t *rkmsg, void *arg
 
 int init_kafka_producer(void)
 {
+	struct kafka_config_pair kcp_conf[] = { {"bootstrap.servers", "10.0.38.243,10.0.38.244", 1},
+#ifdef USE_LZ4
+											{"compression.codec", "lz4", 0},
+#endif
+											{"message.max.bytes", "20971520", 0},
+											{"batch.num.messages", "2000", 0},
+											{"queue.buffering.max.kbytes", "131072", 0},
+											{"queue.buffering.max.ms", "100", 0},
+											{"request.required.acks", "all", 0}
+										  };
+
 	rd_kafka_conf_t *conf = rd_kafka_conf_new();
 
-	if(rd_kafka_conf_set(conf, "bootstrap.servers", broker_list, errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK){
-		fprintf(stderr, "%s\n", errbuf);
-		return -1;
+	for(size_t c=0; c < sizeof(kcp_conf)/sizeof(struct kafka_config_pair); c++){
+		if(rd_kafka_conf_set(conf, kcp_conf[c].key, kcp_conf[c].val, errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK){
+			fprintf(stderr, "Unable to set %s\n", kcp_conf[c].key);
+			if(kcp_conf[c].fail_on_err)
+				return -1;
+		}
 	}
-#ifdef USE_LZ4
-	if(rd_kafka_conf_set(conf, "compression.codec", "lz4", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
-		fprintf(stderr, "Unable to select LZ4 compression\n");
-#endif
-	if(rd_kafka_conf_set(conf, "message.max.bytes", "20971520", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
-		fprintf(stderr, "Unable to set max.message.bytes\n");
-	if(rd_kafka_conf_set(conf, "batch.num.messages", "2000", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
-		fprintf(stderr, "Unable to set batch.num.messages\n");
-	if(rd_kafka_conf_set(conf, "queue.buffering.max.kbytes", "131072", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
-		fprintf(stderr, "Unable to set queue.buffering.max.kbytes\n");
-	if(rd_kafka_conf_set(conf, "queue.buffering.max.ms", "100", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
-		fprintf(stderr, "Unable to set queue.buffering.max.ms\n");
-	if(rd_kafka_conf_set(conf, "request.required.acks", "all", errbuf, sizeof(errbuf)) != RD_KAFKA_CONF_OK)
-		fprintf(stderr, "Unable to set request.required.acks\n");
 
 	rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
 
 	rk = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errbuf, sizeof(errbuf));
-
 	if(!rk){
 		fprintf(stderr, "producer: %s\n", errbuf);
 		return -1;

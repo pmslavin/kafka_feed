@@ -40,9 +40,13 @@ void sigint_tidy(int arg)
 void sighup_reload(int arg)
 {
 	(void)arg;	// unused
-	fprintf(stderr, "Caught HUP...\n");
-	fprintf(stderr, "Reloading config...\n");
-	fprintf(stderr, "Reinitialising Kafka producer...\n");
+	char log_time[24];
+	isotime(log_time);
+	fprintf(stderr, "\r[%s] Caught HUP...\n", log_time);
+	isotime(log_time);
+	fprintf(stderr, "[%s] Reloading config...\n", log_time);
+	isotime(log_time);
+	fprintf(stderr, "[%s] Reinitialising Kafka producer...\n", log_time);
 	close_kafka_producer();
 	init_kafka_producer();
 }
@@ -75,7 +79,7 @@ int main(int argc, char *argv[])
 
 	int rk_ret = init_kafka_producer();
 	if(rk_ret == -1){
-		fprintf(stderr, "unable to initialise Kafka: %d\n", rk_ret);
+		fprintf(stderr, "Unable to initialise Kafka: %d\n", rk_ret);
 		return -1;
 	}
 
