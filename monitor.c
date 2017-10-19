@@ -13,6 +13,7 @@
 #include "eventqueue.h"
 #include "fileops.h"
 #include "kafkaops.h"
+#include "thread.h"
 
 #define INBUF_SZ 4096
 
@@ -92,6 +93,8 @@ int main(int argc, char *argv[])
 	free(hbuf);
 */
 
+	create_threads();
+
 	monitor_pid = getpid();
 	char init_time[ISO_TIME_SZ];
 	isotime(init_time);
@@ -138,9 +141,13 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
 		print_queue(queue_head, stderr);
 #endif
+		pthread_mutex_lock(&fqmutex);
 		enqueue_files(filequeue_head, queue_head, watch_dir);
-		print_fileinfos(filequeue_head, stderr);
-		print_cdrmsgs(cdrmsgqueue_head, stderr);
+		work_available = 1;
+		pthread_cond_broadcast(&fqcond);
+		pthread_mutex_unlock(&fqmutex);
+//		print_fileinfos(filequeue_head, stderr);
+//		print_cdrmsgs(cdrmsgqueue_head, stderr);
 	}
 
 	close(infd);

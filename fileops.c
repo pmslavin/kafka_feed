@@ -16,6 +16,7 @@
 #include "utils.h"
 
 fileinfo_t *filequeue_head   = NULL;
+fileinfo_t *donequeue_head   = NULL;
 cdrmsg_t   *cdrmsgqueue_head = NULL;
 
 
