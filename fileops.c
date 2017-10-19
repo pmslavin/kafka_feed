@@ -13,6 +13,7 @@
 #include "eventqueue.h"
 #include "fileops.h"
 #include "kafkaops.h"
+#include "utils.h"
 
 fileinfo_t *filequeue_head   = NULL;
 cdrmsg_t   *cdrmsgqueue_head = NULL;
@@ -126,10 +127,13 @@ void print_fileinfos(fileinfo_t *f, FILE *dest)
 {
 	size_t fcount = 0;
 	fileinfo_t *last = NULL;
+	char log_time[24];
 	while(f){
-		fprintf(dest, "[%3u] %s %u bytes %lu %s\n", ++fcount, f->path, (unsigned int)f->size, f->mtime, f->digest);
+		++fcount;
+		isotime(log_time);
 		size_t cdr_count = form_cdr_msgs(&cdrmsgqueue_head, f);
-		(void)cdr_count;	// unused
+		fprintf(dest, "[%s] %s %u bytes %u msgs %lu %s\n", log_time, f->path, (unsigned int)f->size, cdr_count, f->mtime, f->digest);
+//		(void)cdr_count;	// unused
 
 /*		fprintf(stderr, "data: %s  count: %u\n", cdrmsgqueue_head->msg, cdr_count);
 		char *msg_buf = form_file_msg(f, &msg_size);
@@ -143,12 +147,13 @@ void print_fileinfos(fileinfo_t *f, FILE *dest)
 		last = NULL;
 	}
 	filequeue_head = NULL;
-	fprintf(dest, "file count: %u\n", fcount);
+//	fprintf(dest, "file count: %u\n", fcount);
 }
 
 
 void print_cdrmsgs(cdrmsg_t *q, FILE *dest)
 {
+	(void)dest;	// unused
 	size_t msg_count = 0;
 	cdrmsg_t *last = NULL;
 	while(q){
@@ -160,7 +165,7 @@ void print_cdrmsgs(cdrmsg_t *q, FILE *dest)
 		free_cdrmsg(last);
 		last = NULL;
 	}
-	fprintf(dest, "msg count: %u\n", msg_count);
+//	fprintf(dest, "msg count: %u\n", msg_count);
 	flush_kafka_buffer(5);
 	cdrmsgqueue_head = NULL;
 }

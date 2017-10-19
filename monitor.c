@@ -82,14 +82,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Unable to initialise Kafka: %d\n", rk_ret);
 		return -1;
 	}
-
-/*
-	struct sigaction sa;
-	sa.sa_handler = sighup_reload;
-	sa.sa_flags   = SA_RESTART;
-	sigfillset(&sa.sa_mask);
-	sigaction(SIGHUP, &sa, NULL);
-*/
 	signal(SIGINT, sigint_tidy);
 	signal(SIGHUP, sighup_reload);
 
@@ -114,8 +106,9 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		char	buf[INBUF_SZ];
-		int		idx = 0, in_count = 0;
+		char	inbuf[INBUF_SZ];
+		int		idx = 0;
+		size_t	in_count = 0;
 
 		if(pollret && fd.revents & POLLIN){
 			size_t count;
@@ -128,8 +121,8 @@ int main(int argc, char *argv[])
 //			fprintf(stderr, "%d bytes of IN events\n", count);
 			in_count = count;
 
-			int ret;
-			while( count>0 && (ret = read(infd, &buf[idx], count)) != 0){
+			ssize_t ret;
+			while( count>0 && (ret = read(infd, inbuf+idx, count)) != 0){
 				if(ret == -1){
 					if(errno == EINTR)
 						continue;
@@ -141,7 +134,7 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		qecount += enqueue_events(queue_head, buf, in_count);
+		qecount += enqueue_events(queue_head, inbuf, in_count);
 #ifdef DEBUG
 		print_queue(queue_head, stderr);
 #endif
