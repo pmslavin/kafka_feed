@@ -172,7 +172,7 @@ error:
 }
 
 
-size_t form_cdr_msgs(cdrmsg_t **q, const fileinfo_t *f)
+size_t enqueue_cdr_msgs(cdrmsg_t **q, const fileinfo_t *f)
 {
 	size_t msg_count = 0, line_len = 0;
 	ssize_t count = 0;
@@ -180,7 +180,7 @@ size_t form_cdr_msgs(cdrmsg_t **q, const fileinfo_t *f)
 
 	FILE *fp = fopen(f->path, "r");
 	if(!fp){
-		perror("form_cdr_msgs: fopen");
+		perror("enqueue_cdr_msgs: fopen");
 		return -1;
 	}
 
@@ -200,7 +200,7 @@ size_t form_cdr_msgs(cdrmsg_t **q, const fileinfo_t *f)
 		free(line);
 		cdrmsg_t *cm = malloc(sizeof(cdrmsg_t));
 		if(!cm){
-			perror("form_cdr_msgs: malloc");
+			perror("enqueue_cdr_msgs: malloc");
 			free(msg);
 			return -1;
 		}
@@ -283,4 +283,23 @@ restart:
 void flush_kafka_buffer(size_t sec)
 {
 	rd_kafka_flush(rk, sec*1000);
+}
+
+
+size_t publish_cdrqueue(cdrmsg_t **cdrq_head)
+{
+	size_t cdrcount = 0;
+	cdrmsg_t *cdrprev = NULL;
+	cdrmsg_t *cdrq	   = *cdrq_head;
+	while(cdrq){
+		++cdrcount;
+		publish(cdrq->msg, strlen(cdrq->msg));
+		cdrprev = cdrq;
+		cdrq = cdrq->next;
+		free_cdrmsg(cdrprev);
+		cdrprev = NULL;
+	}
+	*cdrq_head = NULL;
+
+	return cdrcount;
 }

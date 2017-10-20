@@ -132,7 +132,7 @@ void print_fileinfos(fileinfo_t *f, FILE *dest)
 	while(f){
 		++fcount;
 		isotime(log_time);
-		size_t cdr_count = form_cdr_msgs(&cdrmsgqueue_head, f);
+		size_t cdr_count = enqueue_cdr_msgs(&cdrmsgqueue_head, f);
 		fprintf(dest, "[%s] %s %u bytes %u msgs %lu %s\n", log_time, f->path, (unsigned int)f->size, cdr_count, f->mtime, f->digest);
 //		(void)cdr_count;	// unused
 

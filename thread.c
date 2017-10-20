@@ -4,6 +4,8 @@
 
 #include "thread.h"
 #include "fileops.h"
+#include "kafkaops.h"
+#include "utils.h"
 
 size_t nthreads = 4;
 thread_info_t *tinfo = NULL;
@@ -31,32 +33,38 @@ int	work_available = 0;
 void *file_worker(void *arg)
 {
 	thread_info_t *t = (thread_info_t *)arg;
-	fileinfo_t *f = NULL, *prev = NULL;
+	fileinfo_t *f = NULL;
+	cdrmsg_t *cdrq_head = NULL;
+	char log_time[24];
 
-	while(!work_available){
-		fprintf(stderr, "thread %u waiting...\n", t->thread_num);
-		pthread_cond_wait(&fqcond, &fqmutex);
-	}
+	while(1){
+		while(!work_available){
+			fprintf(stderr, "thread %u waiting...\n", t->thread_num);
+			pthread_cond_wait(&fqcond, &fqmutex);
+		}
 
-	if(filequeue_head){
-		f = filequeue_head;
-		filequeue_head = filequeue_head->next;
+		if(filequeue_head){
+			f = filequeue_head;
+			filequeue_head = filequeue_head->next;
+		}
+		if(!filequeue_head){
+			work_available = 0;
+			pthread_cond_broadcast(&fqcond);
+		}
+		pthread_mutex_unlock(&fqmutex);
+		if(f){
+			f->next = NULL;
+			isotime(log_time);
+			size_t cdr_count = enqueue_cdr_msgs(&cdrq_head, f);
+			fprintf(stderr, "[%s (%u)] %s %u bytes %u msgs %lu %s\n", log_time, t->thread_num, f->path, (unsigned int)f->size, cdr_count, f->mtime, f->digest);
+		}
+		publish_cdrqueue(&cdrq_head);
+		pthread_mutex_lock(&dqmutex);
+		/* put on dq */
+		sleep(1);
+		pthread_mutex_unlock(&dqmutex);
+		fprintf(stderr, "thread %u complete...\n", t->thread_num);
 	}
-	if(!filequeue_head){
-		work_available = 0;
-		pthread_cond_broadcast(&fqcond);
-	}
-	pthread_mutex_unlock(&fqmutex);
-	if(f)
-		f->next = NULL;
-	fprintf(stderr, "thread %u active...\n", t->thread_num);
-	/* do work */
-	sleep(1);
-	pthread_mutex_lock(&dqmutex);
-	/* put on dq */
-	sleep(1);
-	pthread_mutex_unlock(&dqmutex);
-
 	return NULL;
 }
 
