@@ -115,7 +115,7 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 
 		fq = filequeue_head;	// Always restart fq search from q head
 		eq = eq->next;
-		queue_head = eq;		// Pop consumed eq from eventqueue
+		evqueue_head = eq;		// Pop consumed eq from eventqueue
 		free(eqlast->event);
 		free(eqlast);
 		eqlast = NULL;

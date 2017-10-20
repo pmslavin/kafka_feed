@@ -33,6 +33,7 @@ void sigint_tidy(int arg)
 	close_kafka_producer();
 	isotime(log_time);
 	fprintf(stderr, "[%s] Ending watch on %s (%u)\n", log_time, watch_dir, monitor_pid);
+	destroy_threads();
 
 	exit(0);
 }
@@ -86,13 +87,6 @@ int main(int argc, char *argv[])
 	signal(SIGINT, sigint_tidy);
 	signal(SIGHUP, sighup_reload);
 
-/* Test hash
-	char *hbuf = NULL;
-	int hsize = hash_file("/home/pslavin/.bashrc", &hbuf);
-	fprintf(stderr, ".bashrc: %s\n", hbuf);
-	free(hbuf);
-*/
-
 	create_threads();
 
 	monitor_pid = getpid();
@@ -121,7 +115,9 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 
-//			fprintf(stderr, "%d bytes of IN events\n", count);
+#ifdef DEBUG
+			fprintf(stderr, "%d bytes of IN events\n", count);
+#endif
 			in_count = count;
 
 			ssize_t ret;
@@ -137,12 +133,12 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		qecount += enqueue_events(queue_head, inbuf, in_count);
+		qecount += enqueue_events(evqueue_head, inbuf, in_count);
 #ifdef DEBUG
-		print_queue(queue_head, stderr);
+		print_queue(evqueue_head, stderr);
 #endif
 		pthread_mutex_lock(&fqmutex);
-		enqueue_files(filequeue_head, queue_head, watch_dir);
+		enqueue_files(filequeue_head, evqueue_head, watch_dir);
 		work_available = 1;
 		pthread_cond_broadcast(&fqcond);
 		pthread_mutex_unlock(&fqmutex);

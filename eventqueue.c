@@ -3,7 +3,7 @@
 #include <string.h>
 #include "eventqueue.h"
 
-eventqueue_t *queue_head = NULL;
+eventqueue_t *evqueue_head = NULL;
 
 
 size_t enqueue_events(eventqueue_t *q, const char *buf, size_t buf_sz)
@@ -34,7 +34,7 @@ size_t enqueue_events(eventqueue_t *q, const char *buf, size_t buf_sz)
 		if(qlast)
 			qlast->next = q;
 		else
-			queue_head  = q;
+			evqueue_head  = q;
 
 #ifdef DEBUG
 		fprintf(stderr, "\tqecount: %u  idx: %d\n", qecount, idx);
