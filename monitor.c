@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	int wd = inotify_add_watch(infd, watch_dir, IN_CREATE | IN_MOVED_TO);
+	int wd = inotify_add_watch(infd, watch_dir, IN_CLOSE_WRITE | IN_MOVED_TO);
 	if(wd == -1){
 		perror("inotify_add_watch");
 		fprintf(stderr, "Unable to watch dir: %s\n", watch_dir);

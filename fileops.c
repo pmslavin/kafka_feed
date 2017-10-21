@@ -25,7 +25,7 @@ ssize_t hash_file(const char *path, char **digbuf)
 	void *fbuf = NULL;
 
 	struct stat sb;
-	int fd = open(path, 'r');
+	int fd = open(path, O_RDONLY);
 	if(fd == -1){
 		perror("open");
 		return -1;
@@ -87,7 +87,7 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 			return -1;
 		}
 
-		int fd = open(f->path, 'r');
+		int fd = open(f->path, O_RDONLY);
 		if(fd == -1){
 			perror("open");
 			return -1;

@@ -83,19 +83,19 @@ int init_kafka_producer(void)
 	const struct rd_kafka_metadata *metadata;
 
 	rd_kafka_resp_err_t err = rd_kafka_metadata(rk, 1, rkt, &metadata, 5000);
-	if(err != RD_KAFKA_RESP_ERR_NO_ERROR)
+	if(err != RD_KAFKA_RESP_ERR_NO_ERROR){
 		fprintf(stderr, "Unable to retrieve Kafka metadata\n");
-
-	char log_time[ISO_TIME_SZ];
-	isotime(log_time);
-	fprintf(stderr, "[%s] Connected to brokers:\n", log_time);
-	for(int i=metadata->broker_cnt-1; i>=0; i--){	// ids descend?
-		fprintf(stderr, "  id: %u  %s:%i\n", metadata->brokers[i].id,
-											 metadata->brokers[i].host,
-											 metadata->brokers[i].port);
+	}else{
+		char log_time[ISO_TIME_SZ];
+		isotime(log_time);
+		fprintf(stderr, "[%s] Connected to brokers:\n", log_time);
+		for(int i=metadata->broker_cnt-1; i>=0; i--){	// ids descend?
+			fprintf(stderr, "  id: %u  %s:%i\n", metadata->brokers[i].id,
+												 metadata->brokers[i].host,
+												 metadata->brokers[i].port);
+		}
+		rd_kafka_metadata_destroy(metadata);
 	}
-
-	rd_kafka_metadata_destroy(metadata);
 	rd_kafka_poll(rk, 0);
 	rd_kafka_flush(rk, 5*1000);
 
@@ -137,7 +137,7 @@ char *form_file_msg(const fileinfo_t *f, size_t *msg_size)
 
 	int pfoff = snprintf(buf, pflen+1, prefix, f->path, f->size, f->mtime, f->digest);
 
-	int fd = open(f->path, 'r');
+	int fd = open(f->path, O_RDONLY);
 	if(fd == -1){
 		perror("form_file_msg: open");
 		goto error;
