@@ -53,7 +53,7 @@ void *file_worker(void *arg)
 		}
 		if(!filequeue_head){
 			work_available = 0;
-			pthread_cond_broadcast(&fqcond);
+//			pthread_cond_broadcast(&fqcond);
 		}
 		pthread_mutex_unlock(&fqmutex);
 		if(f){
@@ -75,7 +75,7 @@ void *file_worker(void *arg)
 		else
 			donequeue_head = f;
 		work_complete = 1;
-		pthread_cond_broadcast(&dqcond);
+		pthread_cond_signal(&dqcond);
 		pthread_mutex_unlock(&dqmutex);
 		f = NULL;
 		fprintf(stderr, "fq thread %u complete...\n", t->thread_num);
@@ -101,7 +101,7 @@ void *done_worker(void *arg)
 		}
 		if(!donequeue_head){
 			work_complete = 0;
-			pthread_cond_broadcast(&dqcond);
+//			pthread_cond_broadcast(&dqcond);
 		}
 		pthread_mutex_unlock(&dqmutex);
 		if(f){
