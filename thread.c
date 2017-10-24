@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "thread.h"
 #include "fileops.h"
@@ -20,6 +21,7 @@
 		- Worker performs work
 		- Worker acquires dqm
 		- Worker places completed work on dq
+		- Worker raises dqcond
 		- Worker releases dqm
 */
 size_t			 file_nthreads = 8;
@@ -43,7 +45,9 @@ void *file_worker(void *arg)
 
 	while(1){
 		while(!work_available){
+#ifdef THREAD_DEBUG
 			fprintf(stderr, "fq thread %u waiting...\n", t->thread_num);
+#endif
 			pthread_cond_wait(&fqcond, &fqmutex);
 		}
 
@@ -51,34 +55,34 @@ void *file_worker(void *arg)
 			f = filequeue_head;
 			filequeue_head = filequeue_head->next;
 		}
-		if(!filequeue_head){
+		if(!filequeue_head)
 			work_available = 0;
-//			pthread_cond_broadcast(&fqcond);
-		}
 		pthread_mutex_unlock(&fqmutex);
 		if(f){
 			f->next = NULL;
 			isotime(log_time);
 			size_t cdr_count = enqueue_cdr_msgs(&cdrq_head, f);
 			fprintf(stderr, "[%s (%u)] %s %u bytes %u msgs %lu %s\n", log_time, t->thread_num, f->path, (unsigned int)f->size, cdr_count, f->mtime, f->digest);
+			publish_cdrqueue(&cdrq_head);
+			pthread_mutex_lock(&dqmutex);
+			/* put on dq */
+			dq = donequeue_head;
+			while(dq){
+				dqprev = dq;
+				dq = dq->next;
+			}
+			if(dqprev)
+				dqprev->next = f;
+			else
+				donequeue_head = f;
+			work_complete = 1;
+			pthread_cond_signal(&dqcond);
+			pthread_mutex_unlock(&dqmutex);
+			f = NULL;
 		}
-		publish_cdrqueue(&cdrq_head);
-		pthread_mutex_lock(&dqmutex);
-		/* put on dq */
-		dq = donequeue_head;
-		while(dq){
-			dqprev = dq;
-			dq = dq->next;
-		}
-		if(dqprev)
-			dq->next = f;
-		else
-			donequeue_head = f;
-		work_complete = 1;
-		pthread_cond_signal(&dqcond);
-		pthread_mutex_unlock(&dqmutex);
-		f = NULL;
+#ifdef THREAD_DEBUG
 		fprintf(stderr, "fq thread %u complete...\n", t->thread_num);
+#endif
 	}
 	return NULL;
 }
@@ -92,23 +96,41 @@ void *done_worker(void *arg)
 
 	while(1){
 		while(!work_complete){
+#ifdef THREAD_DEBUG
 			fprintf(stderr, "dq thread %u waiting...\n", t->thread_num);
+#endif
 			pthread_cond_wait(&dqcond, &dqmutex);
 		}
 		if(donequeue_head){
 			f = donequeue_head;
 			donequeue_head = donequeue_head->next;
 		}
-		if(!donequeue_head){
+		if(!donequeue_head)
 			work_complete = 0;
-//			pthread_cond_broadcast(&dqcond);
-		}
 		pthread_mutex_unlock(&dqmutex);
 		if(f){
 			/* do work */
-			f->next = NULL;
-			isotime(log_time);
-			fprintf(stderr, "[%s (%u)] %s processed\n", log_time, t->thread_num, f->path);
+			char *fname = strrchr(f->path, '/');
+			if(fname)
+				fname++;
+			size_t dest_sz = strlen(complete_dir)+strlen(fname)+2;
+			char *fdest = malloc(dest_sz);
+			if(!fdest){
+				perror("malloc fdest");
+			}else{
+				snprintf(fdest, dest_sz, "%s/%s", complete_dir, fname);
+				int ret = rename(f->path, fdest);
+				if(ret){
+					if(errno == EXDEV)
+						perror("rename across filesystems");
+					else
+						perror("rename");
+				}
+				f->next = NULL;
+				isotime(log_time);
+				fprintf(stderr, "[%s (%u)] %s processed to %s \n", log_time, t->thread_num, f->path, fdest);
+				free(fdest);
+			}
 			free_fileinfo(f);
 			f = NULL;
 		}

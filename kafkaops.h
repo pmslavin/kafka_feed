@@ -10,6 +10,7 @@ struct kafka_config_pair{
 	int	 fail_on_err;
 };
 
+extern const char *complete_dir;
 
 int		 init_kafka_producer(void);
 int		 close_kafka_producer(void);

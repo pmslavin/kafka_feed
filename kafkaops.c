@@ -13,6 +13,7 @@
 #include "utils.h"
 
 
+const char *complete_dir = "/tmp/processed";
 static const char *topic  = "paul_test";
 static char connect_txt[] = "[%s] Connection from CDR Monitor producer (%u)";	// [isotime] ... (pid)
 
@@ -262,11 +263,16 @@ restart:
 		rd_kafka_resp_err_t err = rd_kafka_last_error();
 		if(err == RD_KAFKA_RESP_ERR__QUEUE_FULL){
 			size_t outq = rd_kafka_outq_len(rk);
+			(void)outq;	// avoid debug warn
+#ifdef DEBUG
 			fprintf(stderr, "Kafka queue full (%u msgs). Flushing buffer...\n", outq);
+#endif
 			rd_kafka_flush(rk, 1000);
 			rd_kafka_poll(rk, -1);
 			outq = rd_kafka_outq_len(rk);
+#ifdef DEBUG
 			fprintf(stderr, "Kafka queue now holds %u msgs. Retrying...\n", outq);
+#endif
 			goto restart;
 		}else{
 			fprintf(stderr, "[!] Failed to produce to topic %s: %s\n", rd_kafka_topic_name(rkt), rd_kafka_err2str(rd_kafka_last_error()));
