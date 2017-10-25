@@ -24,6 +24,7 @@ typedef struct cdrmsg{
 extern fileinfo_t *filequeue_head;
 extern fileinfo_t *donequeue_head;
 extern cdrmsg_t	  *cdrmsgqueue_head;
+extern size_t	   filequeue_size;
 
 ssize_t hash_file(const char *, char **);
 size_t enqueue_files(fileinfo_t *, eventqueue_t *, const char *);

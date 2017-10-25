@@ -18,6 +18,7 @@
 fileinfo_t *filequeue_head   = NULL;
 fileinfo_t *donequeue_head   = NULL;
 cdrmsg_t   *cdrmsgqueue_head = NULL;
+size_t	    filequeue_size   = 0;	// Requires fqmutex
 
 
 ssize_t hash_file(const char *path, char **digbuf)
@@ -119,6 +120,7 @@ size_t enqueue_files(fileinfo_t *fq, eventqueue_t *eq, const char *dir)
 		free(eqlast->event);
 		free(eqlast);
 		eqlast = NULL;
+		eventqueue_size--;
 	}
 	return fcount;
 }
@@ -177,7 +179,6 @@ void free_cdrmsg(cdrmsg_t *c)
 	free(c->msg);
 	c->msg = NULL;
 	free(c);
-	c = NULL;
 }
 
 

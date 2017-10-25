@@ -4,6 +4,7 @@
 #include "eventqueue.h"
 
 eventqueue_t *evqueue_head = NULL;
+size_t eventqueue_size = 0;
 
 
 size_t enqueue_events(eventqueue_t *q, const char *buf, size_t buf_sz)

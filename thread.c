@@ -55,6 +55,7 @@ void *file_worker(void *arg)
 			f = filequeue_head;
 			filequeue_head = filequeue_head->next;
 		}
+		filequeue_size--;
 		if(!filequeue_head)
 			work_available = 0;
 		pthread_mutex_unlock(&fqmutex);

@@ -77,7 +77,6 @@ int main(int argc, char *argv[])
 
 	fd.fd	  = infd;
 	fd.events = POLLIN;
-	size_t qecount = 0;;
 
 	int rk_ret = init_kafka_producer();
 	if(rk_ret == -1){
@@ -133,15 +132,19 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		qecount += enqueue_events(evqueue_head, inbuf, in_count);
+		eventqueue_size += enqueue_events(evqueue_head, inbuf, in_count);
 #ifdef DEBUG
+		fprintf(stderr, "Event queue: %u items\n", eventqueue_size);
 		print_queue(evqueue_head, stderr);
 #endif
 		pthread_mutex_lock(&fqmutex);
-		enqueue_files(filequeue_head, evqueue_head, watch_dir);
+		filequeue_size += enqueue_files(filequeue_head, evqueue_head, watch_dir);
 		work_available = 1;
 		pthread_cond_broadcast(&fqcond);
 		pthread_mutex_unlock(&fqmutex);
+#ifdef DEBUG
+		fprintf(stderr, "File queue: %u items\n", filequeue_size);
+#endif
 //		print_fileinfos(filequeue_head, stderr);
 //		print_cdrmsgs(cdrmsgqueue_head, stderr);
 	}

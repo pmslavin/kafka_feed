@@ -3,7 +3,7 @@ CC      := gcc
 CFLAGS  := -g -std=c99 -O0
 WARN    := -Wall -Wextra -Wno-format -pedantic
 OBJECTS := eventqueue.o b64.o utils.o thread.o fileops.o kafkaops.o monitor.o
-LIBS	:= -lcrypto -lssl -lrdkafka -lpthread
+LIBS	:= -lcrypto -lrdkafka -lpthread
 #DEFS	:= -DDEBUG -DTHREAD_DEBUG
 DEFS	:=
 

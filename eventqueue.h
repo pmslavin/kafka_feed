@@ -11,7 +11,8 @@ typedef struct queue_t{
 	struct inotify_event *event;
 }eventqueue_t;
 
-extern eventqueue_t *evqueue_head;
+extern eventqueue_t	*evqueue_head;
+extern size_t		 eventqueue_size;
 
 size_t enqueue_events(eventqueue_t *, const char *, size_t);
 void print_queue(eventqueue_t *, FILE *);
