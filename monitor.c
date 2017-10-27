@@ -14,6 +14,7 @@
 #include "fileops.h"
 #include "kafkaops.h"
 #include "thread.h"
+#include "daemon.h"
 
 #define INBUF_SZ 4096
 
@@ -59,6 +60,8 @@ int main(int argc, char *argv[])
 {
 	(void)argc;	// unused
 	(void)argv;	// unused
+
+//	daemonize();
 
 	struct pollfd fd;
 
