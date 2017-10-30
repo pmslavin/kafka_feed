@@ -19,8 +19,27 @@
 #define WRITE_PIDFILE
 
 #define RUN_AS_USER "nobody"
-#define	PIDDIR		"/var/run/monitor"
+#define PIDDIR		"/var/run/monitor"
 #define PIDFILE		"monitor.pid"
+
+#define NUM_CHLD 2
+
+chld_params_t child_params[NUM_CHLD] = {
+			{ "/tmp/monitor", "/tmp/processed", "*.csv", "paul_test", "paul_stats_test", "First" },
+			{ "/tmp/monitor01", "/tmp/processed", "*.csv", "paul_test", "paul_stats_test", "Second" }
+								};
+
+pid_t   pids[NUM_CHLD];
+
+int fork_children(int nchld)
+{
+	int pipefd[2];
+
+	(void)nchld;	// unused
+	(void)pipefd;	// unused
+
+	return 0;
+}
 
 
 static void child_handler(int signum)

@@ -2,7 +2,19 @@
 #define __DAEMON_H__
 /*	Tools for daemon & signal handling */
 
+typedef struct chld_params{
+	char	*src;
+	char	*dest;
+	char 	*filter;
+	char 	*topic;
+	char	*stats_topic;
+	char 	*desc;
+}chld_params_t;
+
+extern chld_params_t child_params[];
+extern pid_t pids[];
 
 int daemonize(void);
+int fork_children(int);
 
 #endif
