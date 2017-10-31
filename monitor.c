@@ -19,7 +19,6 @@
 #define INBUF_SZ 4096
 
 typedef void (*sighandler_t)(int);
-const char *watch_dir = "/tmp/monitor";
 
 
 
@@ -33,7 +32,7 @@ void sigint_tidy(int arg)
 	fprintf(stderr, "[%s] Closing Kafka producer...\n", log_time);
 	close_kafka_producer();
 	isotime(log_time);
-	fprintf(stderr, "[%s] Ending watch on %s (%u)\n", log_time, watch_dir, monitor_pid);
+	fprintf(stderr, "[%s] Ending watch on %s (%u)\n", log_time, params[proc_id].src, monitor_pid);
 	destroy_threads();
 
 	exit(0);
@@ -48,10 +47,12 @@ void sighup_reload(int arg)
 	fprintf(stderr, "\r[%s] Caught HUP...\n", log_time);
 	isotime(log_time);
 	fprintf(stderr, "[%s] Reloading config...\n", log_time);
-	isotime(log_time);
+/* Each dir proc needs to do this now... */
+/*	isotime(log_time);
 	fprintf(stderr, "[%s] Reinitialising Kafka producer...\n", log_time);
 	close_kafka_producer();
 	init_kafka_producer();
+*/
 }
 
 
@@ -61,7 +62,20 @@ int main(int argc, char *argv[])
 	(void)argc;	// unused
 	(void)argv;	// unused
 
-//	daemonize();
+	daemonize();
+	fork_children(2);
+
+	if(master){
+		int active = 1;
+		signal(SIGINT, sigint_tidy);
+		signal(SIGHUP, sighup_reload);
+		while(active){
+			pause();
+			fprintf(stderr, "Master receives signal.\n");
+		}
+		fprintf(stderr, "Master exits on signal.\n");
+		exit(EXIT_SUCCESS);
+	}
 
 	struct pollfd fd;
 
@@ -71,10 +85,10 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	int wd = inotify_add_watch(infd, watch_dir, IN_CLOSE_WRITE | IN_MOVED_TO);
+	int wd = inotify_add_watch(infd, params[proc_id].src, IN_CLOSE_WRITE | IN_MOVED_TO);
 	if(wd == -1){
 		perror("inotify_add_watch");
-		fprintf(stderr, "Unable to watch dir: %s\n", watch_dir);
+		fprintf(stderr, "Unable to watch dir: %s\n", params[proc_id].src);
 		return -1;
 	}
 
@@ -86,15 +100,13 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Unable to initialise Kafka: %d\n", rk_ret);
 		return -1;
 	}
-	signal(SIGINT, sigint_tidy);
-	signal(SIGHUP, sighup_reload);
 
 	create_threads();
 
 	monitor_pid = getpid();
 	char init_time[ISO_TIME_SZ];
 	isotime(init_time);
-	fprintf(stderr, "[%s] Watching %s (%u)\n", init_time, watch_dir, monitor_pid);
+	fprintf(stderr, "[%s] Watching %s (%u)\n", init_time, params[proc_id].src, monitor_pid);
 
 	while(1){
 		int pollret = poll(&fd, 1, -1);
@@ -141,7 +153,7 @@ int main(int argc, char *argv[])
 		print_queue(evqueue_head, stderr);
 #endif
 		pthread_mutex_lock(&fqmutex);
-		filequeue_size += enqueue_files(filequeue_head, evqueue_head, watch_dir);
+		filequeue_size += enqueue_files(filequeue_head, evqueue_head, params[proc_id].src);
 		work_available = 1;
 		pthread_cond_broadcast(&fqcond);
 		pthread_mutex_unlock(&fqmutex);

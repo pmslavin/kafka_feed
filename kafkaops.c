@@ -89,7 +89,7 @@ int init_kafka_producer(void)
 	}else{
 		char log_time[ISO_TIME_SZ];
 		isotime(log_time);
-		fprintf(stderr, "[%s] Connected to brokers:\n", log_time);
+		fprintf(stderr, "[%s] Connected to brokers (%lu):\n", log_time, getpid());
 		for(int i=metadata->broker_cnt-1; i>=0; i--){	// ids descend?
 			fprintf(stderr, "  id: %u  %s:%i\n", metadata->brokers[i].id,
 												 metadata->brokers[i].host,

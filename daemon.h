@@ -11,8 +11,10 @@ typedef struct chld_params{
 	char 	*desc;
 }chld_params_t;
 
-extern chld_params_t child_params[];
+extern chld_params_t params[];
 extern pid_t pids[];
+extern unsigned int master;
+extern int proc_id;
 
 int daemonize(void);
 int fork_children(int);
