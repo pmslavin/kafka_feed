@@ -2,6 +2,7 @@
 	Daemon, Syslog and Signals ops
 */
 #define _POSIX_C_SOURCE 200809L	// dprintf, kill
+#define _GNU_SOURCE				// fopencookie
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +35,7 @@ chld_params_t params[NUM_CHLD] = {
 
 pid_t   pids[NUM_CHLD];
 unsigned int master = 0;
-int proc_id;
+int proc_id = -1;
 
 
 int fork_children(int nchld)
@@ -163,10 +164,45 @@ int daemonize(void)
 }
 
 
+static size_t writer(void *cookie, char const *data, size_t wlen)
+{
+	(void)cookie;	// unused
+	while(*data == ' ')
+		++data, --wlen;
+
+	syslog(LOG_INFO, "%.*s", wlen, data);
+	return wlen;
+}
+
+
+static size_t noop(void)
+{
+	return 0;
+}
+
+
+static cookie_io_functions_t iofuncs = {
+		(cookie_read_function_t *)noop,
+		(cookie_write_function_t *)writer,
+		(cookie_seek_function_t *)noop,
+		(cookie_close_function_t *)noop
+};
+
+
+void filestr_to_syslog(FILE **fp)
+{
+	setvbuf(*fp = fopencookie(NULL, "w", iofuncs), NULL, _IOLBF, 0);
+}
+
+
 int init_logger(void)
 {
+	filestr_to_syslog(&stderr);
 	setlogmask(LOG_UPTO(LOG_DEBUG));
-	openlog("[cdr_monitor]", LOG_PID, LOG_LOCAL1);
+	if(proc_id >= 0)
+		openlog(params[proc_id].desc, LOG_PID, LOG_LOCAL1);
+	else
+		openlog("[cdr_monitor]", LOG_PID, LOG_LOCAL1);
 	syslog(LOG_NOTICE, "Logger initialised");
 
 	return 0;

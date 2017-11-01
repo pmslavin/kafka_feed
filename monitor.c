@@ -64,12 +64,12 @@ int main(int argc, char *argv[])
 
 	daemonize();
 	fork_children(2);
+	init_logger();
 
 	if(master){
 		int active = 1;
 		signal(SIGINT, sigint_tidy);
 		signal(SIGHUP, sighup_reload);
-		init_logger();
 		while(active){
 			pause();
 			fprintf(stderr, "Master receives signal.\n");
