@@ -14,6 +14,8 @@
 #include <pwd.h>
 #include <signal.h>
 #include <wait.h>
+#include <sys/prctl.h>
+#include <syslog.h>
 
 #include "daemon.h"
 
@@ -26,13 +28,14 @@
 #define NUM_CHLD 2
 
 chld_params_t params[NUM_CHLD] = {
-			{ "/tmp/monitor", "/tmp/processed", "*.csv", "paul_test", "paul_stats_test", "First" },
-			{ "/tmp/monitor01", "/tmp/processed", "*.csv", "paul_test", "paul_stats_test", "Second" }
+			{ "/tmp/monitor00", "/tmp/processed", "*.csv", "paul_test", "paul_stats_test", "CDR Type 1 feed" },
+			{ "/tmp/monitor01", "/tmp/processed", "*.csv", "paul_test", "paul_stats_test", "CDR Type 2 feed"}
 								};
 
 pid_t   pids[NUM_CHLD];
 unsigned int master = 0;
 int proc_id;
+
 
 int fork_children(int nchld)
 {
@@ -58,6 +61,8 @@ int fork_children(int nchld)
 			read(pipefd[0], &proc_id, sizeof(int));
 //			fprintf(stderr, "Child %d (%d) has %s %s %s\n", proc_id, getpid(), params[proc_id].src, params[proc_id].dest, params[proc_id].desc);
 			close(pipefd[1]);
+			if(strlen(params[proc_id].desc) > 0)
+				prctl(PR_SET_NAME, params[proc_id].desc);
 			return 0;
 		}else{
 			/* parent */
@@ -68,14 +73,6 @@ int fork_children(int nchld)
 			close(pipefd[1]);
 		}
 	}
-
-/*	if(master){
-		for(int i=0; i<NUM_CHLD; i++){
-			wait(NULL);
-			fprintf(stderr, "Parent waits %d\n", pids[i]);
-		}
-	}
-*/
 	return 0;
 }
 
@@ -161,6 +158,16 @@ int daemonize(void)
 	signal(SIGCHLD, SIG_DFL);
 	signal(SIGUSR1, SIG_DFL);
 	signal(SIGALRM, SIG_DFL);
+
+	return 0;
+}
+
+
+int init_logger(void)
+{
+	setlogmask(LOG_UPTO(LOG_DEBUG));
+	openlog("[cdr_monitor]", LOG_PID, LOG_LOCAL1);
+	syslog(LOG_NOTICE, "Logger initialised");
 
 	return 0;
 }

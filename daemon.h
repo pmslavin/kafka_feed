@@ -18,5 +18,6 @@ extern int proc_id;
 
 int daemonize(void);
 int fork_children(int);
+int init_logger(void);
 
 #endif
