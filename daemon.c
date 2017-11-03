@@ -19,6 +19,9 @@
 #include <syslog.h>
 
 #include "daemon.h"
+#include "kafkaops.h"
+#include "utils.h"
+#include "thread.h"
 
 #define WRITE_PIDFILE
 
@@ -36,6 +39,7 @@ chld_params_t params[NUM_CHLD] = {
 pid_t   pids[NUM_CHLD];
 unsigned int master = 0;
 int proc_id = -1;
+typedef void (*sighandler_t)(int);
 
 
 int fork_children(int nchld)
@@ -206,4 +210,62 @@ int init_logger(void)
 	syslog(LOG_NOTICE, "Logger initialised");
 
 	return 0;
+}
+
+
+void sigchld_handler(int sig)
+{
+	(void)sig;	// unused
+	int status;
+	pid_t pid = waitpid(-1, &status, WNOHANG);
+	if(pid == -1 || pid == 0)
+		return;
+
+	int idx;
+	for(idx=0; idx < NUM_CHLD; idx++){
+		if(pids[idx] == pid)
+			break;
+	}
+
+	if(WIFEXITED(status)){
+		/* handle child exit */
+	}else if(WIFSIGNALED(status)){
+		int signo = WTERMSIG(status);
+		/* handle child signaled */
+		fprintf(stderr, "Master catches child (%ld) exit with signal %d\n", pids[idx], signo);
+	}
+}
+
+
+void sigint_tidy(int arg)
+{
+	(void)arg;	// unused
+	char log_time[24];
+	isotime(log_time);
+	fprintf(stderr, "\r[%s] Interrupt...\n", log_time);
+	isotime(log_time);
+	fprintf(stderr, "[%s] Closing Kafka producer...\n", log_time);
+	close_kafka_producer();
+	isotime(log_time);
+	fprintf(stderr, "[%s] Ending watch on %s (%u)\n", log_time, params[proc_id].src, monitor_pid);
+	destroy_threads();
+
+	exit(0);
+}
+
+
+void sighup_reload(int arg)
+{
+	(void)arg;	// unused
+	char log_time[24];
+	isotime(log_time);
+	fprintf(stderr, "\r[%s] Caught HUP...\n", log_time);
+	isotime(log_time);
+	fprintf(stderr, "[%s] Reloading config...\n", log_time);
+/* Each dir proc needs to do this now... */
+/*	isotime(log_time);
+	fprintf(stderr, "[%s] Reinitialising Kafka producer...\n", log_time);
+	close_kafka_producer();
+	init_kafka_producer();
+*/
 }

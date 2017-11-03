@@ -18,44 +18,6 @@
 
 #define INBUF_SZ 4096
 
-typedef void (*sighandler_t)(int);
-
-
-
-void sigint_tidy(int arg)
-{
-	(void)arg;	// unused
-	char log_time[24];
-	isotime(log_time);
-	fprintf(stderr, "\r[%s] Interrupt...\n", log_time);
-	isotime(log_time);
-	fprintf(stderr, "[%s] Closing Kafka producer...\n", log_time);
-	close_kafka_producer();
-	isotime(log_time);
-	fprintf(stderr, "[%s] Ending watch on %s (%u)\n", log_time, params[proc_id].src, monitor_pid);
-	destroy_threads();
-
-	exit(0);
-}
-
-
-void sighup_reload(int arg)
-{
-	(void)arg;	// unused
-	char log_time[24];
-	isotime(log_time);
-	fprintf(stderr, "\r[%s] Caught HUP...\n", log_time);
-	isotime(log_time);
-	fprintf(stderr, "[%s] Reloading config...\n", log_time);
-/* Each dir proc needs to do this now... */
-/*	isotime(log_time);
-	fprintf(stderr, "[%s] Reinitialising Kafka producer...\n", log_time);
-	close_kafka_producer();
-	init_kafka_producer();
-*/
-}
-
-
 
 int main(int argc, char *argv[])
 {
@@ -70,6 +32,7 @@ int main(int argc, char *argv[])
 		int active = 1;
 		signal(SIGINT, sigint_tidy);
 		signal(SIGHUP, sighup_reload);
+		signal(SIGCHLD, sigchld_handler);
 		while(active){
 			pause();
 			fprintf(stderr, "Master receives signal.\n");

@@ -19,5 +19,8 @@ extern int proc_id;
 int daemonize(void);
 int fork_children(int);
 int init_logger(void);
+void sigchld_handler(int);
+void sighup_reload(int);
+void sigint_tidy(int);
 
 #endif
