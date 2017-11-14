@@ -95,6 +95,9 @@ static void child_handler(int signum)
 }
 
 
+/*  Forks child, after which parent exits on signal from child.
+ *  Child is then reparented to init.
+ */
 int daemonize(void)
 {
 	pid_t pid, ppid, sid;
@@ -125,7 +128,7 @@ int daemonize(void)
 	if(pid > 0){
 		alarm(3);
 		pause();
-		/* This never happens */
+		/* This never happens as child_handler exits */
 		exit(0);
 	}
 	/* Child */
